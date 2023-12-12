@@ -8,7 +8,8 @@ import torch
 import torch.nn.functional as F
 import torch.optim
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
+from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch3d.renderer.cameras import PerspectiveCameras
 
 from config.args_config import default_argument_parser, setup_cfg
