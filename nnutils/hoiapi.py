@@ -44,7 +44,10 @@ class Predictor:
 
         device = self.device
         hHand, hJoints = hand_wrapper(None, batch['hA'], mode='inner')
+        # import cv2
+        # cv2.imwrite('debug.png', batch['image'][0].permute(1, 2, 0).detach().cpu().numpy())
 
+        # Inputs of batch['image'] and batch['obj_mask'] are both cropped images
         image_feat = model.enc(batch['image'], mask=batch['obj_mask'])  # (N, D, H, W)
 
         cTx = geom_utils.compose_se3(batch['cTh'], hTx)

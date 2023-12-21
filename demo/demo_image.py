@@ -73,6 +73,13 @@ def main(args):
     data = process_mocap_predictions(
         mocap_predictions, image, hand_wrapper, mask=object_mask
     )
+    # data: ['cTh', 'hA', 'image', 'obj_mask', 'cam_f', 'cam_p']
+    # cTh: pred_camera
+    # hA: MANO pose param
+    # image: full size image (not cropped)
+    # obj_mask: mask of object (cropped to 224x224): [1, 1, 224, 224]
+    # cam_f: focal length
+    # cam_p: principal point
 
     hoi_predictor = get_hoi_predictor(args)
     output = hoi_predictor.forward_to_mesh(data)
