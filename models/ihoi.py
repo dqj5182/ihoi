@@ -26,25 +26,6 @@ def get_hTx(frame, batch):
     return hTx
 
 
-def get_jsTx(hand_wrapper, hA, hTx):
-    """
-    Args:
-        hand_wrapper ([type]): [description]
-        hA ([type]): [description]
-        hTx ([type]): se3
-    Returns: 
-        (N, 4, 4)
-    """
-    hTjs = hand_wrapper.pose_to_transform(hA, False) 
-    N, num_j, _, _ = hTjs.size()
-    jsTh = geom_utils.inverse_rt(mat=hTjs, return_mat=True)
-    hTx = geom_utils.se3_to_matrix(hTx
-            ).unsqueeze(1).repeat(1, num_j, 1, 1)
-    jsTx = jsTh @ hTx
-    return jsTx
-
-
-
 class IHoi(pl.LightningModule):
     def __init__(self, cfg, **kwargs) -> None:
         super().__init__()
@@ -66,26 +47,12 @@ class IHoi(pl.LightningModule):
         self.metric = 'val'
         self._train_loader = None
 
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.cfg['SOLVER']['BASE_LR'])
-
-    def train_dataloader(self):
-        if self._train_loader is None:
-            loader = build_dataloader(self.cfg, 'train')
-            self._train_loader = loader
-        return self._train_loader
-
     def val_dataloader(self):
         test = self.cfg['DB']['NAME'] if self.cfg['DB']['TESTNAME'] == '' else self.cfg['DB']['TESTNAME']
         val_dataloader = build_dataloader(self.cfg, 'test', is_train=False, name=test)
         trainval_dataloader = build_dataloader(self.cfg, 'train', is_train=True, 
             shuffle=False, bs=min(8, self.cfg.MODEL.BATCH_SIZE), name=self.cfg['DB'].NAME)
         return [val_dataloader, trainval_dataloader]
-    
-    def test_dataloader(self):
-        test = self.cfg['DB']['NAME'] if self.cfg['DB']['TESTNAME'] == '' else self.cfg['DB']['TESTNAME']
-        val_dataloader = build_dataloader(self.cfg, self.cfg['TEST']['SET'], is_train=False, name=test)
-        return [val_dataloader, ]
 
     def get_jsTx(self, hA, hTx):
         hTjs = self.hand_wrapper.pose_to_transform(hA, False)  # (N, J, 4, 4)
@@ -122,163 +89,6 @@ class IHoi(pl.LightningModule):
             'xTh': xTh,
         }
         return out
-    
-    def training_step(self, batch, batch_idx):        
-        losses, out = self.step(batch, batch_idx)
-        losses = {'train_' + e: v for e,v in losses.items()}
-        # loss
-        if self.trainer.is_global_zero:
-            self.log_dict(losses)
-
-            # print every
-            if self.global_step % self.hparams.TRAIN.PRINT_EVERY == 0:
-                self.logger.print(self.global_step, self.current_epoch, losses, losses['train_loss'])
-        return losses['train_loss']
-
-    def test_step(self, *args):
-        if len(args) == 3:
-            batch, batch_idx, dataloader_idx = args
-            if not isinstance(batch_idx, int):
-                batch_idx = batch_idx[0]
-                dataloader_idx = dataloader_idx[0]
-        elif len(args) == 2:
-            batch, batch_idx, = args
-            if not isinstance(batch_idx, int):
-                batch_idx = batch_idx[0]
-            dataloader_idx = 0
-        else:
-            raise NotImplementedError
-
-        prefix = '%d_%d' % (dataloader_idx, batch_idx)
-        losses, out = self.step(batch, 0)
-        if batch_idx % 10 == 0:
-            # for sanity check
-            self.vis_step(out, batch, prefix)
-        f_res = self.quant_step(out, batch)
-
-        return f_res
-
-    def test_epoch_end(self, outputs: List[Any], save_dir=None) -> None:
-        save_dir = self.logger.local_dir if save_dir is None else save_dir
-        mean_list = mesh_utils.test_end_fscore(outputs, save_dir)
-        
-    def validation_step(self, *args):
-        return args
-
-    def validation_step_end(self, batch_parts_outputs):
-        args = batch_parts_outputs
-        if len(args) == 3:
-            batch, batch_idx, dataloader_idx = args
-            if not isinstance(batch_idx, int):
-                batch_idx = batch_idx[0]
-                dataloader_idx = dataloader_idx[0]
-        elif len(args) == 2:
-            batch, batch_idx, = args
-            if not isinstance(batch_idx, int):
-                batch_idx = batch_idx[0]
-            dataloader_idx = 0
-        else:
-            raise NotImplementedError
-        prefix = '%d_%d' % (dataloader_idx, batch_idx)
-
-        losses, out = self.step(batch, 0)
-        losses = {'val_' + e: v for e,v in losses.items()}
-        # val loss
-        self.log_dict(losses, prog_bar=True, sync_dist=True)
-
-        if self.trainer.is_global_zero:
-            self.vis_step(out, batch, prefix)
-            self.quant_step(out, batch)
-        return losses
-
-    def quant_step(self, out, batch, sdf=None):
-        device = batch['cam_f'].device
-        N = batch['cam_f'].size(0)
-
-        if sdf is None:
-            camera = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=device)
-            cTx = geom_utils.compose_se3(batch['cTh'], get_hTx(self.cfg['MODEL']['FRAME'], batch))
-            # normal space, joint space jsTn, image space 
-            sdf = functools.partial(self.dec, z=out['z'], hA=batch['hA'], 
-                jsTx=out['jsTx'], cTx=cTx, cam=camera)
-        xObj = mesh_utils.batch_sdf_to_meshes(sdf, N)
-
-        th_list = [.5/100, 1/100,]
-        gt_pc = batch[self.obj_key][..., :3]
-
-        hTx = get_hTx(self.cfg['MODEL']['FRAME'], batch)
-        hObj = mesh_utils.apply_transform(xObj, hTx) 
-        hGt = mesh_utils.apply_transform(gt_pc, hTx)
-        f_res = mesh_utils.fscore(hObj, hGt, num_samples=gt_pc.size(1), th=th_list)
-
-        # f_res, cd = mesh_utils.fscore(xObj, gt_pc, num_samples=gt_pc.size(1), th=th_list)
-        for th, th_f in zip(th_list, f_res[:-1]):
-            self.log('f-%d' % (th*100), np.mean(th_f), sync_dist=True)
-        self.log('cd', np.mean(f_res[-1]), sync_dist=True)
-        return  [batch['indices'].tolist()] + f_res
-
-    def vis_input(self, out, batch, prefix):
-        N = len(batch['hObj'])
-        P = batch[self.sdf_key].size(1)
-        device = batch['hObj'].device
-
-        self.logger.save_images(self.global_step, batch['image'], '%s_image' % prefix)
-
-        zeros = torch.zeros([N, 3], device=device)
-        hHand, _ = self.hand_wrapper(None, batch['hA'], zeros, mode='inner')
-        mesh_utils.dump_meshes(osp.join(self.logger.local_dir, '%d_%s/hand' % (self.global_step, prefix)), hHand)
-
-        hSdf = mesh_utils.pc_to_cubic_meshes(mesh_utils.apply_transform(
-                    batch[self.sdf_key][:, P//2:, :3], get_hTx(self.cfg['MODEL']['FRAME'], batch)
-            ))
-        hHoi = mesh_utils.join_scene([hHand, hSdf])
-        
-        cHoi = mesh_utils.apply_transform(hHoi, batch['cTh'])
-        cameras = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=device)
-        image_list = mesh_utils.render_geom_rot(cHoi, view_centric=True, cameras=cameras)
-        self.logger.save_gif(self.global_step, image_list, '%s_inp' % prefix)
-        
-        return {'hHand': hHand}
-    
-    def vis_output(self, out, batch, prefix, cache={}):
-        N = len(batch['hObj'])
-        device = batch['hObj'].device
-        zeros = torch.zeros([N, 3], device=device)
-        hHand, hJoints = self.hand_wrapper(None, batch['hA'], zeros, mode='inner')
-        cJoints = mesh_utils.apply_transform(hJoints, batch['cTh'])
-        cache['hHand'] = hHand
-
-        # output mesh
-        camera = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=device)
-        cTx = geom_utils.compose_se3(batch['cTh'], get_hTx('norm', batch))
-        # normal space, joint space jsTn, image space 
-        sdf = functools.partial(self.dec, z=out['z'], hA=batch['hA'], 
-            jsTx=out['jsTx'], cTx=cTx, cam=camera)
-            
-        xObj = mesh_utils.batch_sdf_to_meshes(sdf, N, bound=True)
-        cache['xMesh'] = xObj
-        hTx = get_hTx('norm', batch)
-        hObj = mesh_utils.apply_transform(xObj, hTx)
-        mesh_utils.dump_meshes(osp.join(self.logger.local_dir, '%d_%s/obj' % (self.global_step, prefix)), hObj)
-
-        xHoi = mesh_utils.join_scene([mesh_utils.apply_transform(hHand, geom_utils.inverse_rt(hTx)), xObj])
-        image_list = mesh_utils.render_geom_rot(xHoi, scale_geom=True)
-        self.logger.save_gif(self.global_step, image_list, '%s_xHoi' % prefix)
-
-        cHoi = mesh_utils.apply_transform(xHoi, cTx)
-        image = mesh_utils.render_mesh(cHoi, camera)
-        self.logger.save_images(self.global_step, image['image'], '%s_cam_mesh' % prefix,
-            bg=batch['image'], mask=image['mask'])
-        image_list = mesh_utils.render_geom_rot(cHoi, view_centric=True, cameras=camera,
-            xyz=cJoints[:, 5], out_size=512)
-        self.logger.save_gif(self.global_step, image_list, '%s_cHoi' % prefix)
-
-        return cache
-
-    def vis_step(self, out, batch, prefix):
-        cache = self.vis_input(out, batch, prefix)
-        cache = self.vis_output(out, batch, prefix, cache)
-        return cache
 
     def step(self, batch, batch_idx):
         image_feat = self.enc(batch['image'], mask=batch['obj_mask'])  # (N, D, H, W)
@@ -376,7 +186,6 @@ def main(cfg, args):
         )
         lr_monitor = LearningRateMonitor()
 
-        # every_iter = len(model.train_dataloader())
         max_epoch = 20000 # max(cfg.TRAIN.EPOCH, cfg.TRAIN.ITERS // every_iter)
         trainer = pl.Trainer(
                             # gpus=1,
