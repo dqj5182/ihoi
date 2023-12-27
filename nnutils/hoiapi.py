@@ -20,7 +20,6 @@ def get_hoi_predictor(args):
     cfg = OmegaConf.merge(cfg_def, cfg, arg_cfg)
     cfg.MODEL.BATCH_SIZE = 1
     model = model_utils.load_model(cfg, args.experiment_directory, 'last')
-
     predictor = Predictor(model)
     return predictor
 
@@ -39,20 +38,19 @@ class Predictor:
 
         batch = model_utils.to_cuda(batch, self.device)
 
-        hTx = geom_utils.matrix_to_se3(
-            get_nTh(hand_wrapper, batch['hA'].cuda(), cfg.DB.RADIUS, inverse=True))
+        hTx = geom_utils.matrix_to_se3(get_nTh(hand_wrapper, batch['hA'].cuda(), cfg.DB.RADIUS, inverse=True))
 
         device = self.device
-        hHand, hJoints = hand_wrapper(None, batch['hA'], mode='inner')
+        hHand, hJoints = hand_wrapper(None, batch['hA'], mode='inner') # hA is MANO pose param.: [b, 45]
         # import cv2
         # cv2.imwrite('debug.png', batch['image'][0].permute(1, 2, 0).detach().cpu().numpy())
 
         # Inputs of batch['image'] and batch['obj_mask'] are both cropped images
         image_feat = model.enc(batch['image'], mask=batch['obj_mask'])  # (N, D, H, W)
 
-        cTx = geom_utils.compose_se3(batch['cTh'], hTx)
+        cTx = geom_utils.compose_se3(batch['cTh'], hTx) # cTh: pred_camera
 
-        hTjs = hand_wrapper.pose_to_transform(batch['hA'], False)  # (N, J, 4, 4)
+        hTjs = hand_wrapper.pose_to_transform(batch['hA'], False)  # (N, J, 4, 4) # hA: MANO pose param
         N, num_j, _, _ = hTjs.size()
         jsTh = geom_utils.inverse_rt(mat=hTjs, return_mat=True)
         hTx_exp = geom_utils.se3_to_matrix(hTx
@@ -61,10 +59,10 @@ class Predictor:
 
         out = {'z': image_feat, 'jsTx': jsTx}
 
-        camera = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=device)
-        cTx = geom_utils.compose_se3(batch['cTh'], hTx)
+        camera = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=device) # cam_f: focal length, cam_p: principal point
+        cTx = geom_utils.compose_se3(batch['cTh'], hTx) # cTh: pred_camera
         # normal space, joint space jsTn, image space 
-        sdf = functools.partial(model.dec, z=out['z'], hA=batch['hA'], 
+        sdf = functools.partial(model.dec, z=out['z'], hA=batch['hA'], # hA is MANO pose param.
             jsTx=out['jsTx'].detach(), cTx=cTx.detach(), cam=camera)
         # TODO: handel empty predicdtion
         xObj = mesh_utils.batch_sdf_to_meshes(sdf, N, bound=True)
