@@ -288,25 +288,6 @@ class ImplicitNetwork(nn.Module):
         return z_p
 
 
-class PixObj(PixCoord):
-    def __init__(self, cfg, z_dim, hA_dim, freq):
-        super().__init__(cfg, z_dim, hA_dim, freq)
-        J = 16
-        self.net = ImplicitNetwork(z_dim, multires=freq, 
-            **cfg['SDF'])
-    
-    def cat_z_hA(self, z, hA):
-        glb, local, _ = z 
-        glb = glb.unsqueeze(1)
-        return glb + local
-
-
 def build_net(cfg, z_dim=None):
-    if z_dim is None:
-        z_dim = cfg['Z_DIM']
-    if cfg['DEC'] == 'obj':
-        dec = PixObj(cfg, z_dim, cfg['THETA_DIM'], cfg['FREQ'])
-    else:
-        dec = PixCoord(cfg, z_dim, cfg['THETA_DIM'], cfg['FREQ'])
+    dec = PixCoord(cfg, 256, 45, 10)
     return dec
-
