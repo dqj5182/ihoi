@@ -102,7 +102,3 @@ class ImageSpEnc(pl.LightningModule):
         glb_latents = self.global_head(glb_latents)
 
         return glb_latents, latents
-
-
-def build_net(name, cfg) -> ImageSpEnc:
-    return ImageSpEnc(cfg,  out_dim=cfg['MODEL']['Z_DIM'], layer=cfg['MODEL']['ENC_RESO'], modality=cfg['DB']['INPUT'])

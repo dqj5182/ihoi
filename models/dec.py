@@ -237,8 +237,3 @@ class ImplicitNetwork(nn.Module):
         z_p = torch.cat([z.unsqueeze(1).repeat(1, P, 1), points], dim=-1)
         z_p = z_p.reshape(N * P, D + 3)
         return z_p
-
-
-def build_net(cfg, z_dim=None):
-    dec = PixCoord(cfg, 256, 45, 10)
-    return dec
