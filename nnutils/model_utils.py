@@ -7,7 +7,6 @@ import glob
 
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
 
 
 def latest_ckpt(prop, include_last=False, till=-1):

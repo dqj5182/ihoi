@@ -3,14 +3,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models.resnet import resnet34
-import pytorch_lightning as pl
 
 
-class ImageSpEnc(pl.LightningModule):
+class ImageSpEnc(nn.Module):
     def __init__(self, cfg, out_dim, inp_dim=3, modality='rgb', *args, **kwargs):
         super().__init__()
-        # self.hparams = cfg
-        self.hparams.update(cfg)
         self.cfg = cfg
         self.modality = modality
 
