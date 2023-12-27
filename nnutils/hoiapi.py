@@ -19,7 +19,11 @@ def get_hoi_predictor(args):
     arg_cfg = OmegaConf.from_dotlist(['%s=%s' % (a,b) for a,b in zip(args.opts[::2], args.opts[1::2])])
     cfg = OmegaConf.merge(cfg_def, cfg, arg_cfg)
     cfg.MODEL.BATCH_SIZE = 1
+
+    # Load model
     model = model_utils.load_model(cfg, args.experiment_directory, 'last')
+
+    # Forward input to model
     predictor = Predictor(model)
     return predictor
 
@@ -33,12 +37,10 @@ class Predictor:
     
     def forward_to_mesh(self, batch):
         model = self.model
-        cfg = self.model.cfg
         hand_wrapper = self.hand_wrapper
 
         batch = model_utils.to_cuda(batch, self.device)
-
-        hTx = geom_utils.matrix_to_se3(get_nTh(hand_wrapper, batch['hA'].cuda(), cfg.DB.RADIUS, inverse=True))
+        hTx = geom_utils.matrix_to_se3(get_nTh(hand_wrapper, batch['hA'].cuda(), 0.2, inverse=True))
 
         device = self.device
         hHand, hJoints = hand_wrapper(None, batch['hA'], mode='inner') # hA is MANO pose param.: [b, 45]

@@ -105,4 +105,4 @@ class ImageSpEnc(pl.LightningModule):
 
 
 def build_net(name, cfg) -> ImageSpEnc:
-    return ImageSpEnc(cfg,  out_dim=cfg.MODEL.Z_DIM, layer=cfg.MODEL.ENC_RESO, modality=cfg.DB.INPUT)
+    return ImageSpEnc(cfg,  out_dim=cfg['MODEL']['Z_DIM'], layer=cfg['MODEL']['ENC_RESO'], modality=cfg['DB']['INPUT'])

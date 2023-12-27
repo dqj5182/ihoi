@@ -49,22 +49,25 @@ class IHoi(pl.LightningModule):
     def __init__(self, cfg, **kwargs) -> None:
         super().__init__()
         # self.hparams = cfg
-        self.hparams.update(cfg)
+        # self.hparams.update(cfg)
+        # self.cfg = cfg
+
+        cfg = {'CAMERA': {'F': 100.0}, 'DB': {'CACHE': True, 'CLS': 'sdf_img', 'DIR': '/glusterfs/yufeiy2/fair/data/', 'IMAGE': False, 'INPUT': 'rgba', 'JIT_ART': 0.2, 'JIT_P': 0, 'JIT_SCALE': 0.5, 'JIT_TRANS': 0.2, 'NAME': 'rhoi', 'NUM_POINTS': 4096, 'RADIUS': 0.2, 'TESTNAME': 'rhoi', 'DET_TH': 0.0, 'DT': 1, 'GT': 'none', 'IOU_TH': 0.4, 'T0': 0, 'TIME': 10, 'VOX_RESO': 32}, 'DUM': '', 'EXP': 'aug', 'GPU': 0, 'HAND': {'MANO_PATH': '../data/smplx/mano', 'WRAP': 'mano'}, 'LOSS': {'ENFORCE_MINMAX': True, 'KL': 0.0001, 'OCC': 'strict', 'OFFSCREEN': 'gt', 'RECON': 1.0, 'SDF_MINMAX': 0.1, 'SCALE': 1.0, 'SO3': 1.0, 'TRANS': 1.0, 'VIEW': 10.0, 'SMOOTH': 0.0, 'CONTACT': 0.0, 'REPULSE': 0.0}, 'MODEL': {'BATCH_SIZE': 1, 'DEC': 'PixCoord', 'ENC': 'ImageSpEnc', 'ENC_RESO': -3, 'FRAME': 'norm', 'FREQ': 10, 'GRAD': 'none', 'IS_PCA': 0, 'LATENT_DIM': 128, 'NAME': 'IHoi', 'PC_DIM': 128, 'SDF': {'DIMS': [512, 512, 512, 512, 512, 512, 512, 512], 'GEOMETRIC_INIT': False, 'SKIP_IN': [4], 'th': False}, 'THETA_DIM': 45, 'THETA_EMB': 'pca', 'Z_DIM': 256, 'CLS': 'ft_3d_pifu', 'OCC': 'sdf', 'VOX': {'BLOCKS': [2, 2], 'UP': [1, 2]}, 'VOX_INP': 16}, 'MODEL_PATH': '../output/aug/pifu_MODEL.DECPixCoord/large/rhoi_3dDB.INPUT_rgba_MODEL.SDF.th_False_DB.JIT_ART_0.2', 'MODEL_SIG': 'aug/pifu_MODEL.DECPixCoord', 'OPT': {'BATCH_SIZE': 16, 'INIT': 'zero', 'LR': 0.001, 'NAME': 'opt', 'NET': False, 'OPT': 'adam', 'STEP': 1000}, 'OUTPUT_DIR': '../output/', 'RENDER': {'METRIC': 1}, 'SEED': 123, 'SOLVER': {'BASE_LR': 1e-05}, 'TEST': {'DIR': '', 'NAME': 'default', 'NUM': 2, 'SET': 'test'}, 'TRAIN': {'EPOCH': 20000, 'EVAL_EVERY': 250, 'ITERS': 50000, 'PRINT_EVERY': 100}, 'SLURM': {'NGPU': 1, 'PART': 'devlab', 'RUN': False, 'TIME': 720, 'WORK': 10}, 'VOX_TH': 0.1, 'FT': {'ENC': True, 'DEC': True}}
         self.cfg = cfg
 
-        self.dec = dec.build_net(cfg.MODEL)  # sdf
-        self.enc = enc.build_net(cfg.MODEL.ENC, cfg)  # ImageSpEnc(cfg, out_dim=cfg.MODEL.Z_DIM, layer=cfg.MODEL.ENC_RESO, modality=cfg.DB.INPUT)
+        self.dec = dec.build_net(cfg['MODEL'])  # sdf
+        self.enc = enc.build_net(cfg['MODEL']['ENC'], cfg)  # ImageSpEnc(cfg, out_dim=cfg.MODEL.Z_DIM, layer=cfg.MODEL.ENC_RESO, modality=cfg.DB.INPUT)
         self.hand_wrapper = ManopthWrapper()
 
-        self.minT = -cfg.LOSS.SDF_MINMAX
-        self.maxT = cfg.LOSS.SDF_MINMAX
-        self.sdf_key = '%sSdf' % cfg.MODEL.FRAME[0]
-        self.obj_key = '%sObj' % cfg.MODEL.FRAME[0]
+        self.minT = -0.1
+        self.maxT = 0.1
+        self.sdf_key = '%sSdf' % cfg['MODEL']['FRAME'][0]
+        self.obj_key = '%sObj' % cfg['MODEL']['FRAME'][0]
         self.metric = 'val'
         self._train_loader = None
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.cfg.SOLVER.BASE_LR)
+        return torch.optim.Adam(self.parameters(), lr=self.cfg['SOLVER']['BASE_LR'])
 
     def train_dataloader(self):
         if self._train_loader is None:
@@ -73,15 +76,15 @@ class IHoi(pl.LightningModule):
         return self._train_loader
 
     def val_dataloader(self):
-        test = self.cfg.DB.NAME if self.cfg.DB.TESTNAME == '' else self.cfg.DB.TESTNAME
+        test = self.cfg['DB']['NAME'] if self.cfg['DB']['TESTNAME'] == '' else self.cfg['DB']['TESTNAME']
         val_dataloader = build_dataloader(self.cfg, 'test', is_train=False, name=test)
         trainval_dataloader = build_dataloader(self.cfg, 'train', is_train=True, 
-            shuffle=False, bs=min(8, self.cfg.MODEL.BATCH_SIZE), name=self.cfg.DB.NAME)
+            shuffle=False, bs=min(8, self.cfg.MODEL.BATCH_SIZE), name=self.cfg['DB'].NAME)
         return [val_dataloader, trainval_dataloader]
     
     def test_dataloader(self):
-        test = self.cfg.DB.NAME if self.cfg.DB.TESTNAME == '' else self.cfg.DB.TESTNAME
-        val_dataloader = build_dataloader(self.cfg, self.cfg.TEST.SET, is_train=False, name=test)
+        test = self.cfg['DB']['NAME'] if self.cfg['DB']['TESTNAME'] == '' else self.cfg['DB']['TESTNAME']
+        val_dataloader = build_dataloader(self.cfg, self.cfg['TEST']['SET'], is_train=False, name=test)
         return [val_dataloader, ]
 
     def get_jsTx(self, hA, hTx):
@@ -101,7 +104,7 @@ class IHoi(pl.LightningModule):
     def forward(self, batch):
         image_feat = self.enc(batch['image'], mask=batch['obj_mask'])  # (N, D, H, W)
         
-        hTx = get_hTx(self.cfg.MODEL.FRAME, batch)
+        hTx = get_hTx(self.cfg['MODEL']['FRAME'], batch)
         xTh = geom_utils.inverse_rt(hTx)
         cTx = geom_utils.compose_se3(batch['cTh'], hTx)
         cameras = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=batch['image'].device)
@@ -194,7 +197,7 @@ class IHoi(pl.LightningModule):
 
         if sdf is None:
             camera = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=device)
-            cTx = geom_utils.compose_se3(batch['cTh'], get_hTx(self.cfg.MODEL.FRAME, batch))
+            cTx = geom_utils.compose_se3(batch['cTh'], get_hTx(self.cfg['MODEL']['FRAME'], batch))
             # normal space, joint space jsTn, image space 
             sdf = functools.partial(self.dec, z=out['z'], hA=batch['hA'], 
                 jsTx=out['jsTx'], cTx=cTx, cam=camera)
@@ -203,7 +206,7 @@ class IHoi(pl.LightningModule):
         th_list = [.5/100, 1/100,]
         gt_pc = batch[self.obj_key][..., :3]
 
-        hTx = get_hTx(self.cfg.MODEL.FRAME, batch)
+        hTx = get_hTx(self.cfg['MODEL']['FRAME'], batch)
         hObj = mesh_utils.apply_transform(xObj, hTx) 
         hGt = mesh_utils.apply_transform(gt_pc, hTx)
         f_res = mesh_utils.fscore(hObj, hGt, num_samples=gt_pc.size(1), th=th_list)
@@ -226,7 +229,7 @@ class IHoi(pl.LightningModule):
         mesh_utils.dump_meshes(osp.join(self.logger.local_dir, '%d_%s/hand' % (self.global_step, prefix)), hHand)
 
         hSdf = mesh_utils.pc_to_cubic_meshes(mesh_utils.apply_transform(
-                    batch[self.sdf_key][:, P//2:, :3], get_hTx(self.cfg.MODEL.FRAME, batch)
+                    batch[self.sdf_key][:, P//2:, :3], get_hTx(self.cfg['MODEL']['FRAME'], batch)
             ))
         hHoi = mesh_utils.join_scene([hHand, hSdf])
         
@@ -247,14 +250,14 @@ class IHoi(pl.LightningModule):
 
         # output mesh
         camera = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=device)
-        cTx = geom_utils.compose_se3(batch['cTh'], get_hTx(self.cfg.MODEL.FRAME, batch))
+        cTx = geom_utils.compose_se3(batch['cTh'], get_hTx('norm', batch))
         # normal space, joint space jsTn, image space 
         sdf = functools.partial(self.dec, z=out['z'], hA=batch['hA'], 
             jsTx=out['jsTx'], cTx=cTx, cam=camera)
             
         xObj = mesh_utils.batch_sdf_to_meshes(sdf, N, bound=True)
         cache['xMesh'] = xObj
-        hTx = get_hTx(self.cfg.MODEL.FRAME, batch)
+        hTx = get_hTx('norm', batch)
         hObj = mesh_utils.apply_transform(xObj, hTx)
         mesh_utils.dump_meshes(osp.join(self.logger.local_dir, '%d_%s/obj' % (self.global_step, prefix)), hObj)
 
@@ -281,7 +284,7 @@ class IHoi(pl.LightningModule):
         image_feat = self.enc(batch['image'], mask=batch['obj_mask'])  # (N, D, H, W)
         
         xXyz = batch[self.sdf_key][..., :3]
-        hTx = get_hTx(self.cfg.MODEL.FRAME, batch)
+        hTx = get_hTx('norm', batch)
         cTx = geom_utils.compose_se3(batch['cTh'], hTx)
         cameras = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=xXyz.device)
 
@@ -310,13 +313,13 @@ class IHoi(pl.LightningModule):
 
     def sdf_loss(self, sdf_pred, sdf_gt, ndcPoints, wgt=1, minmax=False, ):
         # recon loss
-        mode = self.cfg.LOSS.OFFSCREEN  # [gt, out, idc]
+        mode = 'gt'  # [gt, out, idc]
         if mode == 'gt':
             pass
         elif mode == 'out':
             mask = torch.all(ndcPoints <= 1, dim=-1, keepdim=True) &\
                  torch.all(ndcPoints >= -1, dim=-1, keepdim=True)
-            value = self.maxT if self.cfg.MODEL.OCC == 'sdf' else 1
+            value = self.maxT if 'sdf' == 'sdf' else 1
             sdf_gt = mask * sdf_gt + (~mask) * value
         elif mode == 'idc':
             mask = torch.any(ndcPoints <= 1, dim=-1, keepdim=True) & \
@@ -326,7 +329,7 @@ class IHoi(pl.LightningModule):
         else:
             raise NotImplementedError
 
-        if minmax or self.current_epoch >= self.cfg.TRAIN.EPOCH // 2:
+        if minmax or self.current_epoch >= 20000 // 2:
             sdf_pred = torch.clamp(sdf_pred, self.minT, self.maxT)
             sdf_gt = torch.clamp(sdf_gt, self.minT, self.maxT)
         recon_loss = wgt * F.l1_loss(sdf_pred, sdf_gt)
@@ -334,7 +337,7 @@ class IHoi(pl.LightningModule):
 
 
 def main(cfg, args):
-    pl.seed_everything(cfg.SEED)
+    pl.seed_everything(123)
     
     model = IHoi(cfg)
     if args.ckpt is not None:
@@ -343,26 +346,26 @@ def main(cfg, args):
 
     # instantiate model
     if args.eval:
-        logger = MyLogger(save_dir=cfg.OUTPUT_DIR,
-                        name=os.path.dirname(cfg.MODEL_SIG),
-                        version=os.path.basename(cfg.MODEL_SIG),
-                        subfolder=cfg.TEST.DIR,
+        logger = MyLogger(save_dir='../output/',
+                        name=os.path.dirname('aug/pifu_MODEL.DECPixCoord'),
+                        version=os.path.basename('aug/pifu_MODEL.DECPixCoord'),
+                        subfolder='',
                         resume=True,
                         )
         trainer = pl.Trainer(gpus='0,',
-                             default_root_dir=cfg.MODEL_PATH,
+                             default_root_dir='../output/aug/pifu_MODEL.DECPixCoord/large/rhoi_3dDB.INPUT_rgba_MODEL.SDF.th_False_DB.JIT_ART_0.2',
                              logger=logger,
                             #  resume_from_checkpoint=args.ckpt,
                              )
-        print(cfg.MODEL_PATH, trainer.weights_save_path, args.ckpt)
+        print('../output/aug/pifu_MODEL.DECPixCoord/large/rhoi_3dDB.INPUT_rgba_MODEL.SDF.th_False_DB.JIT_ART_0.2', trainer.weights_save_path, args.ckpt)
 
         model.freeze()
         trainer.test(model=model, verbose=False)
     else:
-        logger = MyLogger(save_dir=cfg.OUTPUT_DIR,
-                        name=os.path.dirname(cfg.MODEL_SIG),
-                        version=os.path.basename(cfg.MODEL_SIG),
-                        subfolder=cfg.TEST.DIR,
+        logger = MyLogger(save_dir='../output/',
+                        name=os.path.dirname('aug/pifu_MODEL.DECPixCoord'),
+                        version=os.path.basename('aug/pifu_MODEL.DECPixCoord'),
+                        subfolder='',
                         resume=args.slurm or args.ckpt is not None,
                         )
         checkpoint_callback = ModelCheckpoint(
@@ -374,15 +377,15 @@ def main(cfg, args):
         lr_monitor = LearningRateMonitor()
 
         # every_iter = len(model.train_dataloader())
-        max_epoch = cfg.TRAIN.EPOCH # max(cfg.TRAIN.EPOCH, cfg.TRAIN.ITERS // every_iter)
+        max_epoch = 20000 # max(cfg.TRAIN.EPOCH, cfg.TRAIN.ITERS // every_iter)
         trainer = pl.Trainer(
                             # gpus=1,
                              gpus=-1,
                              accelerator='dp',
                              num_sanity_val_steps=1,
                              limit_val_batches=2,
-                             check_val_every_n_epoch=cfg.TRAIN.EVAL_EVERY,
-                             default_root_dir=cfg.MODEL_PATH,
+                             check_val_every_n_epoch=250,
+                             default_root_dir='../output/aug/pifu_MODEL.DECPixCoord/large/rhoi_3dDB.INPUT_rgba_MODEL.SDF.th_False_DB.JIT_ART_0.2',
                              logger=logger,
                              max_epochs=max_epoch,
                              callbacks=[checkpoint_callback, lr_monitor],

@@ -70,7 +70,7 @@ class PixCoord(nn.Module):
         super().__init__()
         J = 16
         self.net = ImplicitNetwork(z_dim + J*3, multires=freq, 
-            **cfg.SDF)
+            **cfg['SDF'])
 
     def get_dist_joint(self, nPoints, jsTn):
         N, P, _ = nPoints.size()
@@ -134,7 +134,7 @@ class PixCoord(nn.Module):
         within_cube = torch.all(torch.abs(xyz) < 1, dim=-1, keepdim=True).float()  # (NP, )
         gradients = within_cube * gradients + (1 - within_cube) * 1 / np.sqrt(gradients.size(-1))
 
-        if self.cfg.GRAD == 'clip':
+        if self.cfg['GRAD'] == 'clip':
             mask = (y.abs() <= 0.1).float()
             gradients = mask * gradients
         else:
@@ -293,7 +293,7 @@ class PixObj(PixCoord):
         super().__init__(cfg, z_dim, hA_dim, freq)
         J = 16
         self.net = ImplicitNetwork(z_dim, multires=freq, 
-            **cfg.SDF)
+            **cfg['SDF'])
     
     def cat_z_hA(self, z, hA):
         glb, local, _ = z 
@@ -303,10 +303,10 @@ class PixObj(PixCoord):
 
 def build_net(cfg, z_dim=None):
     if z_dim is None:
-        z_dim = cfg.Z_DIM
-    if cfg.DEC == 'obj':
-        dec = PixObj(cfg, z_dim, cfg.THETA_DIM, cfg.FREQ)
+        z_dim = cfg['Z_DIM']
+    if cfg['DEC'] == 'obj':
+        dec = PixObj(cfg, z_dim, cfg['THETA_DIM'], cfg['FREQ'])
     else:
-        dec = PixCoord(cfg, z_dim, cfg.THETA_DIM, cfg.FREQ)
+        dec = PixCoord(cfg, z_dim, cfg['THETA_DIM'], cfg['FREQ'])
     return dec
 

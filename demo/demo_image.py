@@ -51,7 +51,7 @@ def main(args):
     # precit hand
     bbox_detector = get_handmocap_detector(args.view)
     detect_output = bbox_detector.detect_hand_bbox(image[..., ::-1].copy())
-    body_pose_list, body_bbox_list, hand_bbox_list, raw_hand_bboxes = detect_output
+    _, _, hand_bbox_list, _ = detect_output
     res_img = visualizer.visualize(image, hand_bbox_list = hand_bbox_list)
     demo_utils.save_image(res_img, osp.join(args.out, 'hand_bbox.jpg'))
     
@@ -81,8 +81,16 @@ def main(args):
     # cam_f: focal length
     # cam_p: principal point
 
+
+
+
+    # Load iHOI model
     hoi_predictor = get_hoi_predictor(args)
+
+    # Forward input on iHOI model
     output = hoi_predictor.forward_to_mesh(data)
+
+    # Visualize output
     vis_hand_object(output, data, image, args.out + '/%s' % osp.basename(args.filename).split('.')[0])
     
 
