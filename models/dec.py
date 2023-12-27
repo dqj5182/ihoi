@@ -183,35 +183,13 @@ class ImplicitNetwork(nn.Module):
                 out_dim = dims[l + 1]
 
             lin = nn.Linear(dims[l], out_dim)
-
-            if GEOMETRIC_INIT:
-                if l == self.num_layers - 2:
-                    torch.nn.init.normal_(lin.weight, mean=np.sqrt(np.pi) / np.sqrt(dims[l]), std=0.0001)
-                    torch.nn.init.constant_(lin.bias, -bias)
-                elif multires > 0 and l == 0:
-                    torch.nn.init.constant_(lin.bias, 0.0)
-                    torch.nn.init.normal_(lin.weight, 0.0, np.sqrt(2) / np.sqrt(out_dim))
-                    # torch.nn.init.constant_(lin.weight[:, 0:latent_dim], 0.0)
-                    torch.nn.init.constant_(lin.weight[:, latent_dim+3:], 0.0)
-                elif multires > 0 and l in self.skip_in:
-                    torch.nn.init.constant_(lin.bias, 0.0)
-                    torch.nn.init.normal_(lin.weight, 0.0, np.sqrt(2) / np.sqrt(out_dim))
-                    torch.nn.init.constant_(lin.weight[:, -(dims[0] - 3):], 0.0)
-                else:
-                    torch.nn.init.constant_(lin.bias, 0.0)
-                    torch.nn.init.normal_(lin.weight, 0.0, np.sqrt(2) / np.sqrt(out_dim))
-
-            if weight_norm:
-                lin = nn.utils.weight_norm(lin)
+            lin = nn.utils.weight_norm(lin)
 
             # setattr(self, "lin" + str(l), lin)
             self.layers.add_module("lin" + str(l), lin)
 
         self.softplus = nn.Softplus(beta=100)
-        if th:
-            self.th = nn.Tanh()
-        else:
-            self.th = nn.Identity()
+        self.th = nn.Identity()
         
     def forward(self, input, compute_grad=False):
         xyz = input[:, -self.xyz_dim:]
@@ -240,33 +218,6 @@ class ImplicitNetwork(nn.Module):
         apprx_dist= .3
         x = within_cube * x + (1 - within_cube) * (apprx_dist)
         return x
-
-    def gradient(self, x, sdf=None):
-        """
-        :param x: (sumP, D?+3)
-        :return: (sumP, 1, 3)
-        """
-        x.requires_grad_(True)
-        if sdf is None:
-            y = self.forward(x)[:, :1]
-        else:
-            y = sdf(x)
-        d_output = torch.ones_like(y, requires_grad=False, device=y.device)
-        gradients = torch.autograd.grad(
-            outputs=y,
-            inputs=x,
-            grad_outputs=d_output,
-            create_graph=True,
-            retain_graph=True,
-            only_inputs=True)[0]
-        # only care about xyz dim
-        gradients = gradients[..., -3:]
-
-        # only care about sdf within cube
-        xyz = x[..., -self.xyz_dim:]
-        within_cube = torch.all(torch.abs(xyz) < 1, dim=-1, keepdim=True).float()  # (NP, )
-        gradients = within_cube * gradients + (1 - within_cube) * 1 / np.sqrt(gradients.size(-1))
-        return gradients.unsqueeze(1)
 
     def cat_z_point(self, points, z):
         """
