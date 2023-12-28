@@ -33,6 +33,7 @@ def get_handmocap_predictor(
 
 
 def process_mocap_predictions(mocap_predictions, image, hand_wrapper=None, mask=None):
+    # mocap_predictions: ['pred_vertices_smpl', 'pred_joints_smpl', 'faces', 'bbox_scale_ratio', 'bbox_top_left', 'pred_camera', 'img_cropped', 'pred_hand_pose', 'pred_hand_betas', 'pred_vertices_img', 'pred_joints_img']
     if hand_wrapper is None:
         hand_wrapper = ManopthWrapper().to('cpu')
     one_hand = mocap_predictions[0]['right_hand']
@@ -60,7 +61,6 @@ def process_mocap_predictions(mocap_predictions, image, hand_wrapper=None, mask=
         mask = image_utils.crop_resize(mask, hoi_bbox, return_np=False)
         mask = ToTensor()(mask)[None]
         print(mask.shape)
-
 
     data = {
         'cTh': geom_utils.matrix_to_se3(cTh),

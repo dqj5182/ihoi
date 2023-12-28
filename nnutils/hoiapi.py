@@ -49,7 +49,6 @@ class Predictor:
 
         # Inputs of batch['image'] and batch['obj_mask'] are both cropped images
         image_feat = model.enc(batch['image'], mask=batch['obj_mask'])  # (N, D, H, W)
-
         cTx = geom_utils.compose_se3(batch['cTh'], hTx) # cTh: pred_camera
 
         hTjs = hand_wrapper.pose_to_transform(batch['hA'], False)  # (N, J, 4, 4) # hA: MANO pose param
@@ -62,16 +61,19 @@ class Predictor:
         out = {'z': image_feat, 'jsTx': jsTx}
 
         camera = PerspectiveCameras(batch['cam_f'], batch['cam_p'], device=device) # cam_f: focal length, cam_p: principal point
+
         cTx = geom_utils.compose_se3(batch['cTh'], hTx) # cTh: pred_camera
         # normal space, joint space jsTn, image space 
         sdf = functools.partial(model.dec, z=out['z'], hA=batch['hA'], # hA is MANO pose param.
             jsTx=out['jsTx'].detach(), cTx=cTx.detach(), cam=camera)
-        # TODO: handel empty predicdtion
+
         xObj = mesh_utils.batch_sdf_to_meshes(sdf, N, bound=True)
 
         hObj = mesh_utils.apply_transform(xObj, hTx)
+
         out['hObj'] = hObj
         out['hHand'] = hHand
+        
         return out
 
 

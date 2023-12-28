@@ -5,11 +5,9 @@ from torchvision.models.resnet import resnet34
 
 
 class ImageSpEnc(nn.Module):
-    def __init__(self, cfg, out_dim, inp_dim=3, modality='rgb', *args, **kwargs):
+    def __init__(self, out_dim, inp_dim=3, modality='rgb', *args, **kwargs):
         super().__init__()
-        self.cfg = cfg
         self.modality = modality
-
         model = resnet34(True)
         if modality in ['rgb', 'gray', 'fg']:
             pass

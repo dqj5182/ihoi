@@ -69,8 +69,7 @@ class PixCoord(nn.Module):
     def __init__(self, cfg, z_dim, hA_dim, freq):
         super().__init__()
         J = 16
-        self.net = ImplicitNetwork(z_dim + J*3, multires=freq, 
-            **cfg['SDF'])
+        self.net = ImplicitNetwork(z_dim + J*3, multires=freq)
 
     def get_dist_joint(self, nPoints, jsTn):
         N, P, _ = nPoints.size()
@@ -80,7 +79,6 @@ class PixCoord(nn.Module):
         jsPoints = jsPoints.transpose(1, 2).reshape(N, P, num_j * 3) # N, P, J, 3
         return jsPoints  # (N, P, J)
 
-    # TODO: name!!
     def sample_multi_z(self, xPoints, z, cTx, cam):
         N1, P, D = xPoints.size()
         N = z.size(0)
@@ -109,38 +107,6 @@ class PixCoord(nn.Module):
         sdf_value = sdf_value.view(N, P, 1)
         return sdf_value
 
-    def gradient(self, xPoints, sdf):
-        """
-        Args:
-            x ([type]): (N, P, 3)
-        Returns:
-            Grad sdf_x: (N, P, 3)
-        """
-        xPoints.requires_grad_(True)
-        y = sdf(xPoints)  # (N, P, 1)
-        d_output = torch.ones_like(y, requires_grad=False, device=y.device)
-        gradients = torch.autograd.grad(
-            outputs=y,
-            inputs=xPoints,
-            grad_outputs=d_output,
-            create_graph=True,
-            retain_graph=True,
-            only_inputs=True)[0]
-        # only care about xyz dim
-        # gradients = gradients[..., -3:]
-
-        # only care about sdf within cube
-        xyz = xPoints[..., -3:]
-        within_cube = torch.all(torch.abs(xyz) < 1, dim=-1, keepdim=True).float()  # (NP, )
-        gradients = within_cube * gradients + (1 - within_cube) * 1 / np.sqrt(gradients.size(-1))
-
-        if self.cfg['GRAD'] == 'clip':
-            mask = (y.abs() <= 0.1).float()
-            gradients = mask * gradients
-        else:
-            pass
-        return gradients
-
     def cat_z_hA(self, z, hA):
         glb, local, dst_points = z
         out = torch.cat([(glb.unsqueeze(1) + local), dst_points], -1)
@@ -160,8 +126,7 @@ class ImplicitNetwork(nn.Module):
             SKIP_IN=(4, ),
             weight_norm=True,
             multires=10,
-            th=True,
-            **kwargs
+            th=True
     ):
         self.xyz_dim = d_in
         super().__init__()

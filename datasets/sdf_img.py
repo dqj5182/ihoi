@@ -264,6 +264,7 @@ def vis_db():
         N, P, _ = data['hSdf'].size()
         cameras = PerspectiveCameras(data['cam_f'], data['cam_p'], device=device)
         nSdf = data['nSdf'][..., P // 2:, :3] 
+        import pdb; pdb.set_trace()
         cTn = geom_utils.compose_se3(data['cTh'], geom_utils.inverse_rt(data['nTh']))
         nObj = mesh_utils.pc_to_cubic_meshes(nSdf)
         cObj = mesh_utils.apply_transform(nObj, cTn)

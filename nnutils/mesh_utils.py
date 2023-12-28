@@ -1299,6 +1299,7 @@ def join_scene(mesh_list: List[Meshes]) -> Meshes:
     f_list = []
     t_list = []
     for m, mesh in enumerate(mesh_list):
+        import pdb; pdb.set_trace()
         v_list.append(mesh.verts_list())
         f_list.append(mesh.faces_list())
         if mesh.textures is None or isinstance(mesh.textures, TexturesUV):
@@ -1565,9 +1566,8 @@ def convert_sdf_samples_to_ply(
         # scale = scale * (voxel_size + 2) / (voxel_size)
     
     try:
-        verts, faces, normals, values = skimage.measure.marching_cubes(
-            numpy_3d_sdf_tensor, level=0.0, spacing=[voxel_size] * 3
-        )
+        import pdb; pdb.set_trace()
+        verts, faces, normals, values = skimage.measure.marching_cubes(numpy_3d_sdf_tensor, level=0.0, spacing=[voxel_size] * 3)
         # verts, faces, normals, values = skimage.measure.marching_cubes_lewiner(
         #     numpy_3d_sdf_tensor, level=0.0, spacing=[voxel_size] * 3
         # )
