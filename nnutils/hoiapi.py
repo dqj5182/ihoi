@@ -35,7 +35,7 @@ class Predictor:
         self.model = model.to(device)
         self.hand_wrapper = ManopthWrapper().to(device)
     
-    def forward_to_mesh(self, batch):
+    def forward_to_mesh(self, batch, mocap_predictions):
         model = self.model
         hand_wrapper = self.hand_wrapper
 
@@ -73,7 +73,7 @@ class Predictor:
 
         out['hObj'] = hObj
         out['hHand'] = hHand
-        
+
         return out
 
 

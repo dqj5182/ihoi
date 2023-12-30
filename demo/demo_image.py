@@ -48,7 +48,7 @@ def main(args):
     image = np.array(image)
     print(image.shape)
     
-    # precit hand
+    # Predict hand
     bbox_detector = get_handmocap_detector(args.view)
     detect_output = bbox_detector.detect_hand_bbox(image[..., ::-1].copy())
     _, _, hand_bbox_list, _ = detect_output
@@ -56,9 +56,9 @@ def main(args):
     demo_utils.save_image(res_img, osp.join(args.out, 'hand_bbox.jpg'))
     
     hand_predictor = get_handmocap_predictor()
-    mocap_predictions = hand_predictor.regress(
-        image[..., ::-1], hand_bbox_list
-    )
+    import cv2
+    cv2.imwrite('debug.png', image[..., ::-1])
+    mocap_predictions = hand_predictor.regress(image[..., ::-1], hand_bbox_list)
     # MOW model also takes in masks but currently we feed in all 1. You could specify masks yourself, 
     # or if you have bounding box for object masks, we can convert it to masks 
     
@@ -81,21 +81,11 @@ def main(args):
     # cam_f: focal length
     # cam_p: principal point
 
-
-
-
-
-
-
-
-
-
-
     # Load iHOI model
     hoi_predictor = get_hoi_predictor(args)
 
     # Forward input on iHOI model
-    output = hoi_predictor.forward_to_mesh(data)
+    output = hoi_predictor.forward_to_mesh(data, mocap_predictions)
 
     # Visualize output
     vis_hand_object(output, data, image, args.out + '/%s' % osp.basename(args.filename).split('.')[0])
