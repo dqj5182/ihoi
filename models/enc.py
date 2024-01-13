@@ -34,16 +34,6 @@ class ImageSpEnc(nn.Module):
         dim = 64+128+256+512
         self.z_head = nn.Conv2d(dim, out_dim, 1)
         self.global_head = nn.Sequential(nn.Conv2d(512, out_dim, 1), nn.Flatten())
-    
-    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
-        # change enc channel
-        if self.modality == 'rgba' and state_dict['enc.net.conv1.weight'].size(1) == 3:
-            base = state_dict['enc.net.conv1.weight'].clone()
-            mean = torch.mean(base, dim=1, keepdim=True)
-            weight = torch.cat([base, mean], 1)
-            state_dict['enc.net.conv1.weight'] = weight
-
-        return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
     def _foward_res(self, x):
         latent =[]

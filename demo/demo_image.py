@@ -27,6 +27,7 @@ def get_args():
         "--filename", default="demo/test.jpg", help="Path to image."
     )
     parser.add_argument("--out", default="output", help="Dir to save output.")
+    parser.add_argument("--cropped_input", action="store_true")
     parser.add_argument("--view", default="ego_centric", help="Dir to save output.")
 
     parser.add_argument(
@@ -46,18 +47,31 @@ def main(args):
     visualizer = Visualizer('pytorch3d')
     image = Image.open(args.filename).convert("RGB")
     image = np.array(image)
+    image_h, image_w, _ = image.shape
     print(image.shape)
     
     # Predict hand
     bbox_detector = get_handmocap_detector(args.view)
-    detect_output = bbox_detector.detect_hand_bbox(image[..., ::-1].copy())
-    _, _, hand_bbox_list, _ = detect_output
+    if False:
+        bbox_save_file_name = f"{args.filename.split('/')[-1].split('.png')[0]}.npy"
+        with open(osp.join('/home/danieljung0121/Grasp2Object/experiment/exp_01-13_12:31:37/vis/bbox', bbox_save_file_name), 'rb') as f:
+            hand_bbox_list_orig = np.load(f).tolist()[0] # [xmin, ymin, width, height]
+
+        hand_bbox_list_orig = [max(each_coord, 0) for each_coord in hand_bbox_list_orig]
+        hand_bbox_list_orig = [hand_bbox_list_orig[0], hand_bbox_list_orig[1], min(hand_bbox_list_orig[2], image_w-hand_bbox_list_orig[0]), min(hand_bbox_list_orig[3], image_h-hand_bbox_list_orig[1])]
+        # hand_bbox_list_orig = [max(i, 0) for i in hand_bbox_list_orig]
+        # hand_bbox_list_orig = [hand_bbox_list_orig[0], hand_bbox_list_orig[1], hand_bbox_list_orig[0]+hand_bbox_list_orig[2], hand_bbox_list_orig[1]+hand_bbox_list_orig[3]]
+        hand_bbox_list = [{'left_hand': None, 'right_hand': np.array(hand_bbox_list_orig, dtype=np.float32)}]
+        detect_output = (None, [None], [{'left_hand': None, 'right_hand': np.array(hand_bbox_list_orig, dtype=np.float32)}], None)
+    else:
+        detect_output = bbox_detector.detect_hand_bbox(image[..., ::-1].copy())
+        _, _, hand_bbox_list, _ = detect_output
     res_img = visualizer.visualize(image, hand_bbox_list = hand_bbox_list)
     demo_utils.save_image(res_img, osp.join(args.out, 'hand_bbox.jpg'))
     
     hand_predictor = get_handmocap_predictor()
     import cv2
-    cv2.imwrite('debug.png', image[..., ::-1])
+    cv2.imwrite('debug.png', res_img[..., ::-1])
     mocap_predictions = hand_predictor.regress(image[..., ::-1], hand_bbox_list)
     # MOW model also takes in masks but currently we feed in all 1. You could specify masks yourself, 
     # or if you have bounding box for object masks, we can convert it to masks 
